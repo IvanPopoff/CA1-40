@@ -1,0 +1,14 @@
+77th Street	2196
+Central	1946
+Harbor	1486
+Hollenbeck	1276
+Hollywood	1674
+N Hollywood	1
+Newton	559
+Northeast	1440
+Rampart	1485
+Southwest	1973
+Van Nuys	1444
+West LA	1576
+West Valley	1316
+Wilshire	1627

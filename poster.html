@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LA Crime Analysis</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f9f9f9; color: #333; }
+    header { background: #ffc0cb; padding: 2rem; text-align: center; }
+    header h1 { margin: 0; font-size: 2.5rem; color: #333; }
+    main { max-width: 960px; margin: auto; padding: 1rem; }
+    section { background: #fff; margin: 1.5rem 0; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    section h2 { margin-top: 0; color: #d6336c; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+    table th, table td { border: 1px solid #ddd; padding: 0.75rem; text-align: center; }
+    table th { background: #ffe4e1; }
+    pre { background: #f1f1f1; padding: 1rem; overflow-x: auto; }
+    canvas { display: block; margin: auto; }
+    footer { text-align: center; padding: 1rem; font-size: 0.9rem; color: #666; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Los Angeles Crime Analysis</h1>
+    <p>Big Data &amp; NoSQL Project, April 2025</p>
+  </header>
+  <main>
+    <section id="overview">
+      <h2>Dataset Overview &amp; Storage</h2>
+      <p>Source: <strong>Crime Data 2020–Present</strong> (City of LA). ~20 000 records in CSV format, updated monthly.(https://catalog.data.gov/dataset/crime-data-from-2020-to-present)</p>
+      <ul>
+        <li>Contains all records from past 5 years: structured fields, geo-coordinates, text descriptions.</li>
+        <li>Key schema: <code>AREA_NAME</code>, <code>DATE_OCC</code>, <code>Crm_Cd_Desc</code>, <code>LOCATION</code>, <code>LAT</code>/<code>LON</code>.</li>
+        <li>Storage framework evaluated: HDFS for batch processing vs. MongoDB for flexible querying; chosen hybrid HDFS+MongoDB.</li>
+      </ul>
+    </section>
+    <section id="architecture">
+      <h2>System Architecture</h2>
+      <p>Hadoop Streaming (local mode) + MongoDB + YCSB benchmarks.</p>
+      <pre style="background:#f1f1f1; padding:1rem; border-radius:8px;">  Crime CSV (local)
+         │
+         ▼
+  [mapper.py] → [reducer.py]
+         │
+         ▼
+  output_local/part-00000
+         │
+         ▼
+  HDFS &gt; MongoDB (crime_db.records)
+         ▲
+         │
+      YCSB load &amp; run
+      </pre>
+    </section>
+    <section id="mapreduce">
+      <h2>MapReduce Results</h2>
+      <canvas id="areaChart" width="800" height="400"></canvas>
+      <script>
+        const ctx = document.getElementById('areaChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['77th Street','Southwest','Central','Wilshire','West LA','Harbor','Rampart','Van Nuys','Northeast','West Valley'],
+            datasets: [{ label: 'Crime Count', data: [2196,1973,1946,1627,1576,1486,1485,1444,1440,1316], backgroundColor: '#d6336c' }]
+          },
+          options: { scales: { y: { beginAtZero: true } } }
+        });
+      </script>
+      <p class="caption">Figure 1. Top-10 areas by total crime counts (MapReduce local mode, 19999 records).</p>
+      <table>
+        <thead><tr><th>Area</th><th>Count</th></tr></thead>
+        <tbody>
+          <tr><td>77th Street</td><td>2196</td></tr>
+          <tr><td>Southwest</td><td>1973</td></tr>
+          <tr><td>Central</td><td>1946</td></tr>
+          <tr><td>Wilshire</td><td>1627</td></tr>
+          <tr><td>West LA</td><td>1576</td></tr>
+          <tr><td>Harbor</td><td>1486</td></tr>
+          <tr><td>Rampart</td><td>1485</td></tr>
+          <tr><td>Van Nuys</td><td>1444</td></tr>
+          <tr><td>Northeast</td><td>1440</td></tr>
+          <tr><td>West Valley</td><td>1316</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section id="mongodb">
+      <h2>MongoDB: Data Ingestion &amp; Queries</h2>
+      <h3>1. Import &amp; Verification</h3>
+      <pre><code>// Start MongoDB and import
+mongoimport --db crime_db --collection records \
+  --type csv --headerline --file ~/Downloads/crime_20k.csv
+use crime_db;
+db.records.countDocuments(); // 19999</code></pre>
+      <h3>2. Sample Record</h3>
+      <pre><code>db.records.findOne(); // shows full schema with geo-coordinates and offense details</code></pre>
+      <h3>3. Aggregation Examples</h3>
+      <pre><code>// Top-5 areas for "VEHICLE" crimes
+db.records.aggregate([...]).pretty();
+// Count on specific date
+db.records.find({ DATE_OCC: /^05\/30\/2020/ }).count(); // 39</code></pre>
+    </section>
+    <section id="ycsb">
+      <h2>YCSB Performance Benchmarking</h2>
+      <canvas id="ycsbChart" width="800" height="400"></canvas>
+      <script>
+        const ctx2 = document.getElementById('ycsbChart').getContext('2d');
+        new Chart(ctx2, {
+          type: 'line',
+          data: {
+            labels: ['A','B','D'],
+            datasets: [
+              { label: 'Throughput', data: [909.09,936.33,974.66], borderColor: '#d6336c', fill: false },
+              { label: 'Read Latency (µs)', data: [654.10,692.54,649.51], borderColor: '#20c997', fill: false },
+              { label: 'Update Latency (µs)', data: [2339.00,880.76,839.12], borderColor: '#fd7e14', fill: false }
+            ]
+          },
+          options: { scales: { y: { beginAtZero: true } } }
+        });
+      </script>
+      <p class="caption">Figure 2. Throughput and latency across workloads A, B, and D (20 000 records).</p>
+      <table>
+        <thead><tr><th>Workload</th><th>Throughput (ops/sec)</th><th>Avg Read Latency (µs)</th><th>Avg Update/Insert Latency (µs)</th></tr></thead>
+        <tbody>
+          <tr><td>A</td><td>909.09</td><td>654.10</td><td>2 339.00</td></tr>
+          <tr><td>B</td><td>936.33</td><td>692.54</td><td>880.76</td></tr>
+          <tr><td>D</td><td>974.66</td><td>649.51</td><td>839.12</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+  <footer>
+    <p><a href="https://github.com/CCT-Dublin/ca1-40-IvanPopoff" target="_blank">github.com/CCT-Dublin/ca1-40-IvanPopoff</a>.</p>
+  </footer>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
